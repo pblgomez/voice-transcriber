@@ -79,6 +79,7 @@
             type = "app";
             program = "${pkgs.writeShellScript "voice-transcriber" ''
               export PATH="${pkgs.lib.makeBinPath runtimeDeps}:$PATH"
+              cd ${./.}
               ${pythonEnv}/bin/python app/t3.py "$@"
             ''}";
           };
