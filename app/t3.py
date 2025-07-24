@@ -23,6 +23,7 @@ import numpy as np
 import pyaudio
 import queue
 import warnings
+import tempfile
 
 # Import transcription functionality
 from transcribe2 import transcribe_audio, preload_model, get_model
@@ -67,6 +68,13 @@ def get_device():
     except ImportError:
         device = "cpu"
     return device
+
+def is_tty_available():
+    """Check if we have a proper TTY for interactive input"""
+    try:
+        return sys.stdin.isatty() and sys.stdout.isatty()
+    except:
+        return False
 
 DEVICE = get_device()
 
@@ -374,13 +382,18 @@ def select_audio_device():
     
     if not input_devices:
         print("❌ No input devices found!")
-        input("Press Enter to return to main menu...")
+        if is_tty_available():
+            input("Press Enter to return to main menu...")
         return False
     
     print("=" * 60)
     print("Enter the number (0-{}) of the device you want to use, or 'c' to cancel:".format(len(input_devices)-1))
     
     try:
+        if not is_tty_available():
+            # Non-interactive mode - return success without asking for input
+            return True
+            
         choice = input("> ").strip().lower()
         
         if choice == 'c' or choice == '':
@@ -393,11 +406,13 @@ def select_audio_device():
             INPUT_DEVICE_INDEX = device_id
             print(f"✅ Selected: {device_info['name']}")
             save_audio_config()
-            input("Press Enter to return to main menu...")
+            if is_tty_available():
+                input("Press Enter to return to main menu...")
             return True
         else:
             print(f"❌ Invalid choice. Please enter 0-{len(input_devices)-1}")
-            input("Press Enter to return to main menu...")
+            if is_tty_available():
+                input("Press Enter to return to main menu...")
             return False
             
     except (ValueError, KeyboardInterrupt):
@@ -635,7 +650,12 @@ def record_audio_stream(interactive_mode=False):
     
     # Save to file for backup and debugging
     try:
-        filename = 'output.wav' if interactive_mode else 'temp_t3_output.wav'
+        if interactive_mode:
+            filename = 'output.wav'
+        else:
+            # Use system temp directory for non-interactive mode
+            temp_dir = tempfile.gettempdir()
+            filename = os.path.join(temp_dir, 'temp_t3_output.wav')
         
         # Browser-like automatic gain control - boost quiet audio
         audio_data = b''.join(frames)
@@ -686,7 +706,8 @@ def process_audio_stream(audio_frames):
     transcribe_start_time = time.time()
     
     # Process the complete audio
-    temp_file = "temp_t3_output.wav"
+    temp_dir = tempfile.gettempdir()
+    temp_file = os.path.join(temp_dir, "temp_t3_output.wav")
     with wave.open(temp_file, 'wb') as wf:
         wf.setnchannels(CHANNELS)
         wf.setsampwidth(2)  # 16-bit
@@ -976,18 +997,21 @@ class T3VoiceTranscriber:
             logger.info("🎤 Ready for next recording")
         except ImportError:
             try:
-                choice = input("Enter choice (Space/i/other): ").strip().lower()
-                if choice == ' ' or choice == '':
-                    logger.info("🎤 Ready - hold Alt+Shift to record")
-                elif choice == 'i':
-                    logger.info("🎤 Opening device selection...")
-                    if select_audio_device():
-                        logger.info("✅ Audio device updated!")
+                if is_tty_available():
+                    choice = input("Enter choice (Space/i/other): ").strip().lower()
+                    if choice == ' ' or choice == '':
+                        logger.info("🎤 Ready - hold Alt+Shift to record")
+                    elif choice == 'i':
+                        logger.info("🎤 Opening device selection...")
+                        if select_audio_device():
+                            logger.info("✅ Audio device updated!")
+                        else:
+                            logger.info("❌ Device selection cancelled.")
+                        logger.info("🎤 Ready - hold Alt+Shift to record")
                     else:
-                        logger.info("❌ Device selection cancelled.")
-                    logger.info("🎤 Ready - hold Alt+Shift to record")
+                        logger.info("🎤 Ready for next recording")
                 else:
-                    logger.info("🎤 Ready for next recording")
+                    logger.info("🎤 Ready - hold Alt+Shift to record")
             except (KeyboardInterrupt, EOFError):
                 logger.info("🎤 Ready for next recording")
     
@@ -1258,35 +1282,40 @@ def run_interactive_mode():
             break
         except ImportError:
             # Fallback for systems without termios
-            choice = input("Space=record, i=device, q=quit: ").strip().lower()
-            if choice in ['', ' ']:
-                # Simple recording without hotkey stop
-                stop_recording.clear()
-                
-                recorded_frames = []
-                def record_wrapper():
-                    nonlocal recorded_frames
-                    recorded_frames = record_audio_stream(interactive_mode=True)
-                
-                record_thread = threading.Thread(target=record_wrapper)
-                record_thread.start()
-                
-                input("Recording... Press Enter to stop")
-                stop_recording.set()
-                record_thread.join()
-                
-                result, _ = process_audio_stream(recorded_frames)
-                transcription = result.strip()
-                
-                if transcription:
-                    if type_text(transcription):
-                        logger.info(f"✅ Typed: {transcription}")
-                else:
-                    logger.info("❌ No speech detected")
-            elif choice == 'i':
-                select_audio_device()
-            elif choice in ['q', 'm']:
-                interactive_mode_running = False
+            if is_tty_available():
+                choice = input("Space=record, i=device, q=quit: ").strip().lower()
+                if choice in ['', ' ']:
+                    # Simple recording without hotkey stop
+                    stop_recording.clear()
+                    
+                    recorded_frames = []
+                    def record_wrapper():
+                        nonlocal recorded_frames
+                        recorded_frames = record_audio_stream(interactive_mode=True)
+                    
+                    record_thread = threading.Thread(target=record_wrapper)
+                    record_thread.start()
+                    
+                    input("Recording... Press Enter to stop")
+                    stop_recording.set()
+                    record_thread.join()
+                    
+                    result, _ = process_audio_stream(recorded_frames)
+                    transcription = result.strip()
+                    
+                    if transcription:
+                        if type_text(transcription):
+                            logger.info(f"✅ Typed: {transcription}")
+                    else:
+                        logger.info("❌ No speech detected")
+                elif choice == 'i':
+                    select_audio_device()
+                elif choice in ['q', 'm']:
+                    interactive_mode_running = False
+                    break
+            else:
+                # Non-interactive mode, exit
+                logger.info("Interactive mode requires TTY")
                 break
 
 def run_interactive_menu():
@@ -1325,7 +1354,37 @@ def run_interactive_menu():
             logger.info("  • Add user to input group: sudo usermod -a -G input $USER")
             logger.info("  • Then log out and back in")
         logger.info("")
-        input("Press Enter to continue to main menu...")
+        if not is_tty_available():
+            # Non-interactive mode - just start global hotkey mode after setup
+            logger.info("Non-interactive mode detected - starting global hotkey mode...")
+            if not check_permissions():
+                logger.error("Cannot use global hotkeys without proper permissions")
+                if is_windows():
+                    logger.error("💡 Install with: pip install pynput")
+                else:
+                    logger.error("💡 Run as root or add user to input group: sudo usermod -a -G input $USER")
+                return
+            
+            transcriber = T3VoiceTranscriber()
+            transcriber.run()
+            return
+        else:
+            input("Press Enter to continue to main menu...")
+    
+    # If non-interactive and not first run, start global hotkey mode directly  
+    if not is_tty_available():
+        logger.info("Non-interactive mode detected - starting global hotkey mode...")
+        if not check_permissions():
+            logger.error("Cannot use global hotkeys without proper permissions")
+            if is_windows():
+                logger.error("💡 Install with: pip install pynput")
+            else:
+                logger.error("💡 Run as root or add user to input group: sudo usermod -a -G input $USER")
+            return
+        
+        transcriber = T3VoiceTranscriber()
+        transcriber.run()
+        return
     
     while True:  # Main menu loop
         logger.info("")
@@ -1350,14 +1409,16 @@ def run_interactive_menu():
                         logger.error("💡 Install with: pip install pynput")
                     else:
                         logger.error("💡 Run as root or add user to input group: sudo usermod -a -G input $USER")
-                    input("Press Enter to return to main menu...")
+                    if is_tty_available():
+                        input("Press Enter to return to main menu...")
                     continue  # Return to menu
                 
                 transcriber = T3VoiceTranscriber()
                 result = transcriber.run()
                 # After hotkey mode exits, return to menu
                 logger.info("Global hotkey mode ended")
-                input("Press Enter to return to main menu...")
+                if is_tty_available():
+                    input("Press Enter to return to main menu...")
                 continue
                 
             elif choice == '2':

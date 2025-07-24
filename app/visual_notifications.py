@@ -18,6 +18,7 @@ import time
 import threading
 import subprocess
 import logging
+import tempfile
 
 # Setup logger for this module
 logger = logging.getLogger(__name__)
@@ -228,7 +229,8 @@ if __name__ == "__main__":
 '''
         
         # Create temporary script file
-        overlay_file = f'/tmp/{self.app_name.lower().replace(" ", "_")}_overlay_{int(time.time())}.py'
+        temp_dir = tempfile.gettempdir()
+        overlay_file = os.path.join(temp_dir, f'{self.app_name.lower().replace(" ", "_")}_overlay_{int(time.time())}.py')
         with open(overlay_file, 'w') as f:
             f.write(overlay_script)
         

@@ -11,6 +11,7 @@ import numpy as np
 import pyaudio
 import queue
 import warnings
+import tempfile
 from transcribe2 import transcribe_audio, preload_model, get_model
 import json
 
@@ -314,7 +315,8 @@ def process_audio_stream():
     
 
     # Process the complete audio
-    temp_file = "temp_output.wav"
+    temp_dir = tempfile.gettempdir()
+    temp_file = os.path.join(temp_dir, "temp_output.wav")
     with wave.open(temp_file, 'wb') as wf:
         wf.setnchannels(CHANNELS)
         wf.setsampwidth(2)  # 16-bit
