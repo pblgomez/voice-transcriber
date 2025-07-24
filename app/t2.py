@@ -245,12 +245,14 @@ def record_audio_stream():
     
     # Save to file for backup and debugging
     try:
-        with wave.open('output.wav', 'wb') as wf:
+        temp_dir = tempfile.gettempdir()
+        output_file = os.path.join(temp_dir, 'output.wav')
+        with wave.open(output_file, 'wb') as wf:
             wf.setnchannels(CHANNELS)
             wf.setsampwidth(p.get_sample_size(FORMAT))
             wf.setframerate(RATE)
             wf.writeframes(b''.join(frames))
-        print(f"Audio saved to output.wav for debugging")
+        print(f"Audio saved to {output_file} for debugging")
     except Exception as e:
         print(f"Warning: Could not save audio file: {e}")
     

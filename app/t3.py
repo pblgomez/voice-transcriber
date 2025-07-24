@@ -664,11 +664,11 @@ def record_audio_stream(interactive_mode=False):
     
     # Save to file for backup and debugging
     try:
+        # Always use system temp directory to avoid read-only filesystem issues
+        temp_dir = tempfile.gettempdir()
         if interactive_mode:
-            filename = 'output.wav'
+            filename = os.path.join(temp_dir, 'output.wav')
         else:
-            # Use system temp directory for non-interactive mode
-            temp_dir = tempfile.gettempdir()
             filename = os.path.join(temp_dir, 'temp_t3_output.wav')
         
         # Browser-like automatic gain control - boost quiet audio
