@@ -387,13 +387,27 @@ def select_audio_device():
         return False
     
     print("=" * 60)
+    
+    if not is_tty_available():
+        # Non-interactive mode - use pipewire (device 3) as default if available
+        for i, (device_id, device_info) in enumerate(input_devices):
+            if 'pipewire' in device_info['name'].lower():
+                INPUT_DEVICE_INDEX = device_id
+                print(f"✅ Auto-selected: {device_info['name']} (non-interactive mode)")
+                save_audio_config()
+                return True
+        # Fallback to first device if pipewire not found
+        if input_devices:
+            device_id, device_info = input_devices[0]
+            INPUT_DEVICE_INDEX = device_id
+            print(f"✅ Auto-selected: {device_info['name']} (non-interactive mode)")
+            save_audio_config()
+            return True
+        return False
+    
     print("Enter the number (0-{}) of the device you want to use, or 'c' to cancel:".format(len(input_devices)-1))
     
     try:
-        if not is_tty_available():
-            # Non-interactive mode - return success without asking for input
-            return True
-            
         choice = input("> ").strip().lower()
         
         if choice == 'c' or choice == '':
