@@ -438,8 +438,9 @@ def countdown_timer():
     for i in range(RECORD_SECONDS, 0, -1):
         if stop_recording.is_set():
             break
-        print(f'Recording time remaining: {i} seconds... (press space to stop)', end='\r')
+        print(f'\rRecording time remaining: {i} seconds... (press space to stop)', end='', flush=True)
         time.sleep(1)
+    print(f"\r{' ' * 60}\r", end='')  # Clear the countdown line
 
 def check_for_stop_key():
     """Check for space key to stop recording early"""
@@ -602,7 +603,8 @@ def record_audio_stream(interactive_mode=False):
                 # Show audio level indicator every 20 chunks (less frequent display)
                 if i % 20 == 0 and amplitude > 100:
                     level_bars = int(amplitude / 1000)
-                    print(f"Audio level: {'█' * min(level_bars, 20)} ({amplitude})", end='\r')
+                    # Clear the line first, then show the indicator
+                    print(f"\rAudio level: {'█' * min(level_bars, 20)} ({amplitude})", end='', flush=True)
                     
             except Exception as e:
                 if interactive_mode:
@@ -639,7 +641,8 @@ def record_audio_stream(interactive_mode=False):
         logger.debug(f"stop_recording.is_set() = {stop_recording.is_set()}")
     
     if interactive_mode:
-        print(f"\nFinished recording - Max audio level: {max_amplitude}")
+        print(f"\r{' ' * 50}\r")  # Clear the audio level line first
+        print(f"Finished recording - Max audio level: {max_amplitude}")
         print(f"Captured {total_chunks} chunks at {working_rate/working_chunk:.1f} chunks/sec")
         
         if max_amplitude < 500:

@@ -249,13 +249,14 @@ def record_audio_stream():
             # Show audio level indicator every 10 chunks
             if i % 10 == 0 and amplitude > 100:
                 level_bars = int(amplitude / 1000)
-                print(f"Audio level: {'█' * min(level_bars, 20)} ({amplitude})", end='\r')
+                print(f"\rAudio level: {'█' * min(level_bars, 20)} ({amplitude})", end='', flush=True)
                 
         except Exception as e:
             print(f"Recording error: {e}")
             break
     
-    print(f"\nFinished recording - Max audio level: {max_amplitude}")
+    print(f"\r{' ' * 50}\r")  # Clear the audio level line first
+    print(f"Finished recording - Max audio level: {max_amplitude}")
     
     if max_amplitude < 500:
         print("⚠️  WARNING: Very low audio levels detected!")
@@ -291,8 +292,9 @@ def countdown_timer():
     for i in range(RECORD_SECONDS, 0, -1):
         if stop_recording.is_set():
             break
-        print(f'Recording time remaining: {i} seconds... (press space to stop)', end='\r')
+        print(f'\rRecording time remaining: {i} seconds... (press space to stop)', end='', flush=True)
         time.sleep(1)
+    print(f"\r{' ' * 60}\r", end='')  # Clear the countdown line
 
 def check_for_stop_key():
     """Check for space key to stop recording early"""
