@@ -71,17 +71,34 @@
             python-uinput
             faster-whisper
           ]);
+
+          # Create a package for the voice transcriber
+          voice-transcriber = pkgs.stdenv.mkDerivation {
+            pname = "voice-transcriber";
+            version = "0.1.0";
+            src = ./.;
+            
+            installPhase = ''
+              mkdir -p $out/share/voice-transcriber
+              cp -r app/* $out/share/voice-transcriber/
+              
+              mkdir -p $out/bin
+              cat > $out/bin/voice-transcriber << EOF
+              #!${pkgs.bash}/bin/bash
+              export PATH="${pkgs.lib.makeBinPath runtimeDeps}:\$PATH"
+              cd $out/share/voice-transcriber
+              exec ${pythonEnv}/bin/python t3.py "\$@"
+              EOF
+              chmod +x $out/bin/voice-transcriber
+            '';
+          };
         in
         {
           # run with `nix run . -- 1` 
           # to automatically start with the global shortcut mode
           default = {
             type = "app";
-            program = "${pkgs.writeShellScript "voice-transcriber" ''
-              export PATH="${pkgs.lib.makeBinPath runtimeDeps}:$PATH"
-              cd ${./.}
-              ${pythonEnv}/bin/python app/t3.py "$@"
-            ''}";
+            program = "${voice-transcriber}/bin/voice-transcriber";
           };
         });
 
