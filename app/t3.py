@@ -491,14 +491,6 @@ def record_audio_stream(interactive_mode=False):
     os.close(devnull_fd)
     os.close(stderr_fd)
     
-    # Show available input devices for debugging
-    if interactive_mode:
-        print("Available input devices:")
-        for i in range(p.get_device_count()):
-            info = p.get_device_info_by_index(i)
-            if info['maxInputChannels'] > 0:
-                print(f"  Device {i}: {info['name']} - Rate: {info['defaultSampleRate']}")
-    
     # Get device info for optimal settings
     if INPUT_DEVICE_INDEX is not None:
         device_info = p.get_device_info_by_index(INPUT_DEVICE_INDEX)
@@ -526,28 +518,29 @@ def record_audio_stream(interactive_mode=False):
                 buffer_time_ms = (chunk_size / rate) * 1000
                 
                 stream = p.open(
-                    format=FORMAT, 
-                    channels=CHANNELS, 
-                    rate=rate, 
+                    format=FORMAT,
+                    channels=CHANNELS,
+                    rate=rate,
                     input=True,
                     input_device_index=INPUT_DEVICE_INDEX,
-                    frames_per_buffer=chunk_size
+                    frames_per_buffer=chunk_size,
+                    start=False  # Don't start immediately
                 )
+                
+                # Success! Store working configuration
                 working_rate = rate
                 working_chunk = chunk_size
                 
-                if interactive_mode:
-                    print(f"Using: {rate} Hz, {chunk_size} samples ({buffer_time_ms:.1f}ms buffer)")
-                    print(f"Device: {device_info['name']}")
-                else:
+                # Only show setup info in non-interactive mode
+                if not interactive_mode:
+                    buffer_time_ms = (chunk_size / rate) * 1000
                     logger.info(f"Browser-like setup: {rate} Hz, {chunk_size} samples ({buffer_time_ms:.1f}ms)")
                     logger.info(f"Device: {device_info['name']}")
                 break
                 
             except Exception as e:
-                if interactive_mode:
-                    print(f"Config {rate}Hz/{chunk_size} failed: {e}")
-                else:
+                # Only show errors in non-interactive mode
+                if not interactive_mode:
                     logger.debug(f"Config {rate}Hz/{chunk_size} failed: {e}")
                 continue
         
@@ -555,9 +548,31 @@ def record_audio_stream(interactive_mode=False):
             break
     
     if stream is None:
-        if interactive_mode:
-            print("ERROR: Could not open audio stream with any configuration")
-        else:
+    if interactive_mode:
+        # Interactive mode - record until stop signal with browser-like frequent reads  
+        for i in range(max_chunks):
+            if stop_recording.is_set():
+                break
+            try:
+                # Read small chunks very frequently like browsers do
+                data = stream.read(working_chunk, exception_on_overflow=False)
+                frames.append(data)
+                total_chunks += 1
+                
+                # Monitor audio levels for debugging
+                audio_data = np.frombuffer(data, dtype=np.int16)
+                amplitude = np.max(np.abs(audio_data))
+                max_amplitude = max(max_amplitude, amplitude)
+                
+                # Simple, clean status update every 100 chunks (even less spam)
+                if i % 100 == 0 and amplitude > 100:
+                    status = "🟢" if amplitude > 2000 else "🟡" if amplitude > 500 else "🔴"
+                    print(f"\r{status} Recording...", end='', flush=True)
+                    
+            except Exception as e:
+                print(f"Recording error: {e}")
+                break
+    else:
             logger.error("Could not open audio stream with any configuration")
         p.terminate()
         return []
@@ -640,11 +655,11 @@ def record_audio_stream(interactive_mode=False):
         logger.debug(f"stop_recording.is_set() = {stop_recording.is_set()}")
     
     if interactive_mode:
-        print(f"\r{' ' * 50}")  # Clear the recording status line
-        print(f"✅ Recording complete! Max level: {max_amplitude}")
+        print(f"\r{' ' * 30}")  # Clear the recording status line
+        print(f"✅ Recording complete!")
         
         if max_amplitude < 500:
-            print("⚠️  Low audio detected - check microphone settings")
+            print("⚠️  Low audio detected")
     else:
         logger.info(f"Recording finished - Max audio level: {max_amplitude}")
         logger.info(f"Captured {total_chunks} chunks at {working_rate/working_chunk:.1f} chunks/sec")
@@ -687,9 +702,8 @@ def record_audio_stream(interactive_mode=False):
             wf.setsampwidth(2)  # 16-bit
             wf.setframerate(RATE)
             wf.writeframes(audio_data)
-        if interactive_mode:
-            print(f"Audio saved to {filename} for debugging")
-        else:
+        # Only show debug info in non-interactive mode
+        if not interactive_mode:
             logger.debug(f"Audio saved to {filename} for debugging")
     except Exception as e:
         if interactive_mode:
@@ -727,7 +741,7 @@ def process_audio_stream(audio_frames):
     stderr_fd = os.dup(2)
     devnull_fd = os.open(os.devnull, os.O_WRONLY)
     os.dup2(devnull_fd, 2)
-    result = transcribe_audio(audio_path=str(temp_file), device=DEVICE)
+    result = transcribe_audio(audio_path=str(temp_file), device=DEVICE, verbose=False)
     # Restore stderr
     os.dup2(stderr_fd, 2)
     os.close(devnull_fd)
@@ -781,10 +795,7 @@ def type_text(text):
     if CLIPBOARD_AVAILABLE:
         try:
             pyperclip.copy(text)
-            if is_windows():
-                logger.info("Text copied to clipboard - use Ctrl+V to paste")
-            else:
-                logger.info("Text copied to clipboard (typing not available)")
+            # Text copied to clipboard silently
             return True
         except:
             pass
@@ -1151,13 +1162,11 @@ def main():
         elif arg == '2':
             # Interactive mode
             logger.info("Starting interactive mode...")
-            logger.info("Interactive mode - Press Space to record, 'i' for device selection, 'q' to quit")
-            
             # Wait for model
             if preload_thread.is_alive():
-                logger.info("Waiting for model to load...")
+                print("Loading transcription model...")
                 preload_thread.join()
-                logger.info("Model loaded!")
+                print("Model loaded!")
             
             run_interactive_mode()
             return
@@ -1398,13 +1407,11 @@ def run_interactive_menu():
                 
             elif choice == '2':
                 # Interactive mode
-                logger.info("Interactive mode - Press Space to record, 'i' for device selection, 'q' to quit")
-                
                 # Wait for model
                 if preload_thread.is_alive():
-                    logger.info("Waiting for model to load...")
+                    print("Loading transcription model...")
                     preload_thread.join()
-                    logger.info("Model loaded!")
+                    print("Model loaded!")
                 
                 run_interactive_mode()
                 # After interactive mode ends, return to main menu

@@ -56,7 +56,7 @@ def preload_model(model_name=MODEL, device="cpu", compute_type=None):
     thread.start()
     return thread
 
-def transcribe_audio(audio_path="output.wav", model_name=MODEL, device="cpu"):
+def transcribe_audio(audio_path="output.wav", model_name=MODEL, device="cpu", verbose=True):
     """Transcribe audio with performance optimizations"""
     # Use the singleton model instead of loading it each time
     model = get_model(model_name, device)
@@ -81,10 +81,11 @@ def transcribe_audio(audio_path="output.wav", model_name=MODEL, device="cpu"):
         vad_parameters=dict(min_silence_duration_ms=500)  # Skip silences
     )
     
-    # Print language and timing info
-    elapsed = time.time() - start_time
-    print(f"Transcription completed in {elapsed:.2f} seconds")
-    print("Detected language '%s' with probability %f" % (info.language, info.language_probability))
+    # Only print debug info if verbose is True
+    if verbose:
+        elapsed = time.time() - start_time
+        print(f"Transcription completed in {elapsed:.2f} seconds")
+        print("Detected language '%s' with probability %f" % (info.language, info.language_probability))
     
     # Join segments efficiently
     text_parts = []
