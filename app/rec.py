@@ -61,9 +61,9 @@ def countdown():
     for i in range(RECORD_SECONDS, 0, -1):
         if stop_recording:
             break
-        print(f'\rRecording time remaining: {i} seconds... (press space to stop)', end='', flush=True)
+        print(f'\r⏱️  Recording: {i}s remaining (Space to stop)', end='', flush=True)
         time.sleep(1)
-    print(f"\r{' ' * 60}\r", end='')  # Clear the countdown line
+    print(f"\r{' ' * 50}", end='')  # Clear the countdown line
 
 def input_thread_func():
     """Thread to check for key presses"""

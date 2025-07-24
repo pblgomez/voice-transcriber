@@ -246,17 +246,17 @@ def record_audio_stream():
             amplitude = np.max(np.abs(audio_data))
             max_amplitude = max(max_amplitude, amplitude)
             
-            # Show audio level indicator every 10 chunks
-            if i % 10 == 0 and amplitude > 100:
-                level_bars = int(amplitude / 1000)
-                print(f"\rAudio level: {'█' * min(level_bars, 20)} ({amplitude})", end='', flush=True)
+            # Simple, clean status update
+            if i % 50 == 0 and amplitude > 100:
+                status = "🟢" if amplitude > 2000 else "🟡" if amplitude > 500 else "🔴"
+                print(f"\r{status} Recording... (level: {amplitude})", end='', flush=True)
                 
         except Exception as e:
             print(f"Recording error: {e}")
             break
     
-    print(f"\r{' ' * 50}\r")  # Clear the audio level line first
-    print(f"Finished recording - Max audio level: {max_amplitude}")
+    print(f"\r{' ' * 50}")  # Clear the recording status line
+    print(f"✅ Recording complete! Max level: {max_amplitude}")
     
     if max_amplitude < 500:
         print("⚠️  WARNING: Very low audio levels detected!")
@@ -292,9 +292,9 @@ def countdown_timer():
     for i in range(RECORD_SECONDS, 0, -1):
         if stop_recording.is_set():
             break
-        print(f'\rRecording time remaining: {i} seconds... (press space to stop)', end='', flush=True)
+        print(f'\r⏱️  Recording: {i}s remaining (Space to stop)', end='', flush=True)
         time.sleep(1)
-    print(f"\r{' ' * 60}\r", end='')  # Clear the countdown line
+    print(f"\r{' ' * 50}", end='')  # Clear the countdown line
 
 def check_for_stop_key():
     """Check for space key to stop recording early"""

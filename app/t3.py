@@ -438,9 +438,9 @@ def countdown_timer():
     for i in range(RECORD_SECONDS, 0, -1):
         if stop_recording.is_set():
             break
-        print(f'\rRecording time remaining: {i} seconds... (press space to stop)', end='', flush=True)
+        print(f'\r⏱️  Recording: {i}s remaining (Space to stop)', end='', flush=True)
         time.sleep(1)
-    print(f"\r{' ' * 60}\r", end='')  # Clear the countdown line
+    print(f"\r{' ' * 50}", end='')  # Clear the countdown line
 
 def check_for_stop_key():
     """Check for space key to stop recording early"""
@@ -600,11 +600,10 @@ def record_audio_stream(interactive_mode=False):
                 amplitude = np.max(np.abs(audio_data))
                 max_amplitude = max(max_amplitude, amplitude)
                 
-                # Show audio level indicator every 20 chunks (less frequent display)
-                if i % 20 == 0 and amplitude > 100:
-                    level_bars = int(amplitude / 1000)
-                    # Clear the line first, then show the indicator
-                    print(f"\rAudio level: {'█' * min(level_bars, 20)} ({amplitude})", end='', flush=True)
+                # Simple, clean status update every 50 chunks (less spam)
+                if interactive_mode and i % 50 == 0 and amplitude > 100:
+                    status = "🟢" if amplitude > 2000 else "🟡" if amplitude > 500 else "🔴"
+                    print(f"\r{status} Recording... (amplitude: {amplitude})", end='', flush=True)
                     
             except Exception as e:
                 if interactive_mode:
@@ -641,15 +640,11 @@ def record_audio_stream(interactive_mode=False):
         logger.debug(f"stop_recording.is_set() = {stop_recording.is_set()}")
     
     if interactive_mode:
-        print(f"\r{' ' * 50}\r")  # Clear the audio level line first
-        print(f"Finished recording - Max audio level: {max_amplitude}")
-        print(f"Captured {total_chunks} chunks at {working_rate/working_chunk:.1f} chunks/sec")
+        print(f"\r{' ' * 50}")  # Clear the recording status line
+        print(f"✅ Recording complete! Max level: {max_amplitude}")
         
         if max_amplitude < 500:
-            print("⚠️  WARNING: Very low audio levels detected!")
-            print("   - Check microphone is connected and not muted")
-            print("   - Try speaking louder or closer to microphone")
-            print("   - Check system audio input settings")
+            print("⚠️  Low audio detected - check microphone settings")
     else:
         logger.info(f"Recording finished - Max audio level: {max_amplitude}")
         logger.info(f"Captured {total_chunks} chunks at {working_rate/working_chunk:.1f} chunks/sec")
@@ -1216,6 +1211,10 @@ def print_usage():
 
 def run_interactive_mode():
     """Run interactive mode"""
+    print("🎤 Interactive Voice Transcriber")
+    print("Controls: [Space] Record  [i] Devices  [q] Quit")
+    print()
+    
     interactive_mode_running = True
     while interactive_mode_running:
         try:
@@ -1231,7 +1230,8 @@ def run_interactive_mode():
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
             
             if ch in [' ', '\r', '\n']:
-                print()
+                print("🎤 Recording started - press Space again to stop")
+                
                 # Record and transcribe
                 stop_recording.clear()
                 
@@ -1243,8 +1243,6 @@ def run_interactive_mode():
                 
                 record_thread = threading.Thread(target=record_wrapper)
                 record_thread.start()
-                
-                logger.info("Recording... Press Space to stop")
                 
                 # Wait for space to stop
                 while True:
@@ -1261,33 +1259,37 @@ def run_interactive_mode():
                 record_thread.join()
                 
                 # Process audio
+                print("🔄 Processing audio...")
                 result, transcribe_time = process_audio_stream(recorded_frames)
                 transcription = result.strip()
                 
                 if transcription:
+                    print(f"💬 \"{transcription}\"")
                     if type_text(transcription):
-                        logger.info(f"✅ Typed: {transcription}")
+                        print("✅ Text typed successfully!")
                     else:
-                        logger.error("Failed to type text")
+                        print("❌ Failed to type text")
                 else:
-                    logger.info("❌ No speech detected")
+                    print("❌ No speech detected")
+                
+                print()  # Add spacing
                 
             elif ch.lower() == 'i':
-                print()
+                print("🎧 Opening device selection...")
                 select_audio_device()
             elif ch.lower() in ['q', 'Q']:
-                print("\nExiting interactive mode...")
+                print("👋 Goodbye!")
                 interactive_mode_running = False
                 break
             elif ch.lower() == 'm':
-                print("\nExiting interactive mode...")
+                print("📋 Returning to main menu...")
                 interactive_mode_running = False
                 break
             
-            print("\nReady (Space=record, i=device, q=quit)")
+            print("Ready: [Space] Record  [i] Devices  [q] Quit")
             
         except KeyboardInterrupt:
-            print("\nExiting interactive mode...")
+            print("\n👋 Goodbye!")
             interactive_mode_running = False
             break
         except ImportError:
